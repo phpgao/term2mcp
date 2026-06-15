@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="term2mcp — MCP server for iTerm2. Let AI assistants control your terminal.">
+  <title>term2mcp — AI-powered iTerm2 Automation</title>
+
+  <style>
+    /* ===== Design Tokens ===== */
+    :root {
+      --bg:          #0F172A;
+      --bg-elevated: #1E293B;
+      --bg-card:     #19223D;
+      --bg-code:     #0A0E17;
+      --primary:     #22C55E;
+      --primary-dim: #16A34A;
+      --primary-soft: rgba(34,197,94,0.12);
+      --accent-blue: #38BDF8;
+      --accent-purple: #A78BFA;
+      --text:        #F8FAFC;
+      --text-muted:  #94A3B8;
+      --border:      #334155;
+      --border-dim:  #1E293B;
+      --ring:        #22C55E;
+
+      --radius:   10px;
+      --radius-sm: 6px;
+      --transition: 180ms ease-out;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--primary); text-decoration: none; transition: color var(--transition); }
+    a:hover { color: var(--primary-dim); }
+    :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* ===== Layout ===== */
+    .section { padding: 5rem 1.5rem; max-width: 960px; margin: 0 auto; }
+    @media (max-width: 640px) { .section { padding: 3rem 1rem; } }
+    .section-label {
+      font-family: monospace; font-size: 0.78rem; font-weight: 500;
+      color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem;
+    }
+    .section-title {
+      font-family: monospace; font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 700; color: var(--text); margin-bottom: 0.75rem;
+    }
+    .section-desc {
+      font-size: 1.05rem; color: var(--text-muted); max-width: 560px; margin: 0 auto 3rem;
+    }
+
+    /* ===== Nav ===== */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px) saturate(180%);
+      background: rgba(15,23,42,0.82); border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 960px; margin: 0 auto; padding: 0 1.5rem; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-family: monospace; font-weight: 700; color: var(--primary); }
+    .nav-links { display: flex; gap: 1.2rem; align-items: center; }
+    .nav-link { font-size: 0.875rem; font-weight: 500; color: var(--text-muted); transition: color var(--transition); }
+    .nav-link:hover { color: var(--text); }
+
+    /* ===== Hero ===== */
+    .hero { text-align: center; padding-top: clamp(3rem, 10vh, 6rem); padding-bottom: clamp(2rem, 6vh, 4rem); }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--primary-soft); border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 999px; padding: 0.35rem 1rem;
+      font-family: monospace; font-size: 0.75rem; color: var(--primary);
+      margin-bottom: 1.5rem;
+    }
+    .hero-badge-dot { width: 7px; height: 7px; background: var(--primary); border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+      50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .hero-title {
+      font-family: monospace; font-size: clamp(2rem, 6vw, 3.4rem);
+      font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 1rem;
+    }
+    .hero-title .hl { color: var(--primary); text-shadow: 0 0 32px rgba(34,197,94,0.35); }
+    .hero-desc {
+      font-size: clamp(0.95rem, 2vw, 1.15rem); color: var(--text-muted);
+      max-width: 520px; margin: 0 auto 2rem;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.7rem 1.5rem; border-radius: var(--radius);
+      font-family: system-ui, -apple-system, sans-serif; font-size: 0.92rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+      border: 1px solid transparent;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--primary); color: #052E16; border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: var(--primary-dim); box-shadow: 0 0 24px rgba(34,197,94,0.3); color: #052E16;
+    }
+    .btn-secondary {
+      background: transparent; color: var(--text); border-color: var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg-elevated); border-color: var(--text-muted); color: var(--text); }
+    .btn-icon { width: 18px; height: 18px; flex-shrink: 0; }
+    .hero-cta { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+
+    /* ===== Config code block ===== */
+    .config-card {
+      background: var(--bg-code); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      max-width: 600px; margin: 2.5rem auto 0;
+      box-shadow: 0 0 60px rgba(34,197,94,0.05), 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .config-bar {
+      background: var(--bg-elevated); padding: 0.5rem 1rem;
+      display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-dim);
+    }
+    .config-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .config-dot:nth-child(1) { background: #EF4444; }
+    .config-dot:nth-child(2) { background: #EAB308; }
+    .config-dot:nth-child(3) { background: var(--primary); }
+    .config-title {
+      flex: 1; font-family: monospace; font-size: 0.7rem;
+      color: var(--text-muted); text-align: center; user-select: none;
+    }
+    .config-body {
+      padding: 1.25rem; font-family: monospace; font-size: 0.8rem;
+      line-height: 1.65; overflow-x: auto; text-align: left;
+    }
+    .config-body .c-key { color: var(--accent-purple); }
+    .config-body .c-str { color: #FBBF24; }
+    .config-body .c-comment { color: #64748B; font-style: italic; }
+    .config-body .c-num { color: #FB923C; }
+    .config-body .c-bool { color: var(--accent-blue); }
+
+    /* ===== Features ===== */
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    @media (max-width: 768px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .feature-grid { grid-template-columns: 1fr; } }
+    .feature-card {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: var(--radius); padding: 1.5rem;
+      transition: border-color var(--transition), transform var(--transition);
+    }
+    .feature-card:hover {
+      border-color: rgba(34,197,94,0.2); transform: translateY(-1px);
+    }
+    .feature-icon { width: 32px; height: 32px; margin-bottom: 0.75rem; color: var(--primary); }
+    .feature-name {
+      font-family: monospace; font-size: 0.88rem; font-weight: 600;
+      color: var(--text); margin-bottom: 0.3rem;
+    }
+    .feature-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; }
+
+    /* ===== Config Section ===== */
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .config-grid { grid-template-columns: 1fr; } }
+    .config-box {
+      background: var(--bg-code); border: 1px solid var(--border-dim);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .config-box-header {
+      padding: 0.6rem 1rem; background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-dim);
+      font-family: monospace; font-size: 0.75rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .config-box-icon { width: 16px; height: 16px; color: var(--primary); }
+    .config-box-body {
+      padding: 1rem; font-family: monospace; font-size: 0.76rem;
+      line-height: 1.6; overflow-x: auto;
+    }
+    .config-box-body .c-key { color: var(--accent-purple); }
+    .config-box-body .c-str { color: #FBBF24; }
+    .config-box-body .c-comment { color: #64748B; font-style: italic; }
+
+    /* ===== Tools Table ===== */
+    .tools-group { margin-bottom: 2rem; }
+    .tools-group-title {
+      font-family: monospace; font-size: 0.85rem; font-weight: 600;
+      color: var(--primary); margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-dim);
+    }
+    .tools-list {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+    }
+    @media (max-width: 600px) { .tools-list { grid-template-columns: 1fr; } }
+    .tool-item {
+      padding: 0.5rem 0.75rem; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      font-size: 0.85rem; transition: border-color var(--transition);
+    }
+    .tool-item:hover { border-color: rgba(34,197,94,0.15); }
+    .tool-item code {
+      font-family: monospace; color: var(--primary); font-size: 0.8rem;
+      font-weight: 500; background: none; display: block; margin-bottom: 0.15rem;
+    }
+    .tool-item span { color: var(--text-muted); font-size: 0.78rem; }
+
+    /* ===== Integration Section ===== */
+    .integration-steps { display: flex; flex-direction: column; gap: 1.5rem; }
+    .step {
+      display: flex; gap: 1rem; align-items: flex-start;
+    }
+    .step-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--primary-soft); border: 1px solid rgba(34,197,94,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: monospace; font-size: 0.85rem; font-weight: 700;
+      color: var(--primary); flex-shrink: 0;
+    }
+    .step-content h4 {
+      font-family: monospace; font-size: 0.9rem; font-weight: 600;
+      color: var(--text); margin-bottom: 0.25rem;
+    }
+    .step-content p { font-size: 0.85rem; color: var(--text-muted); }
+    .step-content code {
+      font-family: monospace; font-size: 0.78rem; color: var(--primary);
+      background: var(--bg-code); padding: 0.1rem 0.35rem; border-radius: 4px;
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      border-top: 1px solid var(--border-dim); padding: 2.5rem 1.5rem;
+      max-width: 960px; margin: 0 auto;
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem;
+    }
+    .footer-left { display: flex; flex-direction: column; gap: 0.25rem; }
+    .footer-brand { font-family: monospace; font-weight: 700; color: var(--primary); }
+    .footer-text { font-size: 0.85rem; color: var(--text-muted); }
+    .footer-links { display: flex; gap: 1.5rem; align-items: center; }
+    .footer-links a { font-size: 0.85rem; color: var(--text-muted); }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ===== Related Projects ===== */
+    .related { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .related-card {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: var(--radius); padding: 1.25rem 1.5rem; text-align: left;
+      min-width: 200px; transition: border-color var(--transition);
+    }
+    .related-card:hover { border-color: var(--border); }
+    .related-card h4 { font-family: monospace; font-size: 0.9rem; color: var(--text); margin-bottom: 0.3rem; }
+    .related-card p { font-size: 0.8rem; color: var(--text-muted); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a href="/term2mcp/" class="nav-logo">term2mcp</a>
+    <div class="nav-links">
+      <a class="nav-link" href="#features">Features</a>
+      <a class="nav-link" href="#tools">Tools</a>
+      <a class="nav-link" href="#setup">Setup</a>
+      <a class="nav-link" href="https://github.com/phpgao/term2mcp">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- Hero -->
+  <section class="section hero" aria-labelledby="hero-title">
+    <div class="hero-badge">
+      <span class="hero-badge-dot" aria-hidden="true"></span>
+      <span id="version">v0.1.0</span> · MCP for iTerm2
+    </div>
+
+    <h1 id="hero-title" class="hero-title">
+      Your AI <span class="hl">controls</span><br>the terminal
+    </h1>
+
+    <p class="hero-desc">
+      An MCP server that connects AI assistants to your iTerm2.
+      Run commands, read output, manage sessions — all through conversation.
+    </p>
+
+    <div class="hero-cta">
+      <a href="https://github.com/phpgao/term2mcp" class="btn btn-primary">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        Star on GitHub
+      </a>
+      <code class="btn btn-secondary" style="font-family:monospace;font-size:0.85rem;cursor:text;">go install github.com/phpgao/term2mcp@latest</code>
+    </div>
+
+    <!-- Config Preview -->
+    <div class="config-card" aria-hidden="true">
+      <div class="config-bar">
+        <span class="config-dot"></span>
+        <span class="config-dot"></span>
+        <span class="config-dot"></span>
+        <span class="config-title">~/.codebuddy/mcp.json</span>
+      </div>
+      <pre class="config-body"><span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"term2mcp"</span>: {
+      <span class="c-key">"command"</span>: <span class="c-str">"term2mcp"</span>
+    }
+  }</pre>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="features" class="section" aria-labelledby="features-title">
+    <p class="section-label" style="text-align:center">How It Works</p>
+    <h2 id="features-title" class="section-title" style="text-align:center">Talk to your terminal</h2>
+    <p class="section-desc" style="text-align:center">
+      AI assistants read your terminal output, send commands, and manage sessions — zero friction.
+    </p>
+
+    <div class="feature-grid">
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <h3 class="feature-name">Read Output</h3>
+        <p class="feature-desc">AI reads your terminal buffer to understand what's happening.</p>
+      </article>
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+        </svg>
+        <h3 class="feature-name">Send Commands</h3>
+        <p class="feature-desc">AI types commands just like a human — tab completion, Enter, everything.</p>
+      </article>
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/>
+        </svg>
+        <h3 class="feature-name">Control Layout</h3>
+        <p class="feature-desc">Create tabs, split panes, activate windows — layout managed by AI.</p>
+      </article>
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+        </svg>
+        <h3 class="feature-name">Screenshot</h3>
+        <p class="feature-desc">Capture any window, tab, or session as PNG for the AI to analyze.</p>
+      </article>
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <h3 class="feature-name">Secure &amp; Local</h3>
+        <p class="feature-desc">Runs entirely on your Mac. No network, no cloud. Stdio transport.</p>
+      </article>
+      <article class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <h3 class="feature-name">Instant Setup</h3>
+        <p class="feature-desc"><code>go install</code> + one JSON line. That's it. Works out of the box.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Tools -->
+  <section id="tools" class="section" aria-labelledby="tools-title">
+    <p class="section-label" style="text-align:center">16 Tools</p>
+    <h2 id="tools-title" class="section-title" style="text-align:center">Everything accessible to AI</h2>
+    <p class="section-desc" style="text-align:center">
+      Each tool maps directly to an iTerm2 API. AI picks the right one for the task.
+    </p>
+
+    <div class="tools-group">
+      <div class="tools-group-title">Session</div>
+      <div class="tools-list">
+        <div class="tool-item"><code>list_sessions</code><span>List all windows, tabs, sessions with IDs</span></div>
+        <div class="tool-item"><code>send_text</code><span>Send commands as if typed (use \n for Enter)</span></div>
+        <div class="tool-item"><code>get_buffer</code><span>Read terminal screen content</span></div>
+        <div class="tool-item"><code>activate</code><span>Focus a session, bring window to front</span></div>
+        <div class="tool-item"><code>inject_keystrokes</code><span>Inject raw bytes / key sequences</span></div>
+        <div class="tool-item"><code>close_session</code><span>Close a pane (with optional force)</span></div>
+        <div class="tool-item"><code>set_name</code><span>Rename a session for identification</span></div>
+        <div class="tool-item"><code>set_badge</code><span>Set overlay badge text on session</span></div>
+      </div>
+    </div>
+
+    <div class="tools-group">
+      <div class="tools-group-title">Layout</div>
+      <div class="tools-list">
+        <div class="tool-item"><code>create_tab</code><span>New tab or window, optional init command</span></div>
+        <div class="tool-item"><code>split_pane</code><span>Vertical or horizontal split</span></div>
+        <div class="tool-item"><code>focus</code><span>Get currently focused session/tab/window</span></div>
+      </div>
+    </div>
+
+    <div class="tools-group">
+      <div class="tools-group-title">Data</div>
+      <div class="tools-list">
+        <div class="tool-item"><code>get_variable</code><span>Read session variable (name, pid, path...)</span></div>
+        <div class="tool-item"><code>set_variable</code><span>Write session variable</span></div>
+        <div class="tool-item"><code>get_prompt</code><span>Last command text, exit code, working dir</span></div>
+        <div class="tool-item"><code>list_profiles</code><span>List iTerm2 profile names</span></div>
+        <div class="tool-item"><code>screenshot</code><span>PNG capture of window or session</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Integration Setup -->
+  <section id="setup" class="section" aria-labelledby="setup-title">
+    <p class="section-label" style="text-align:center">Integration</p>
+    <h2 id="setup-title" class="section-title" style="text-align:center">Wire into your AI assistant</h2>
+    <p class="section-desc" style="text-align:center">
+      Works with CodeBuddy Code, Claude Desktop, Continue, and any MCP-compatible client.
+    </p>
+
+    <div class="config-grid">
+      <div class="config-box">
+        <div class="config-box-header">
+          <svg class="config-box-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          CodeBuddy Code
+        </div>
+        <pre class="config-box-body"><span class="c-comment">// ~/.codebuddy/mcp.json</span>
+{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"term2mcp"</span>: {
+      <span class="c-key">"command"</span>: <span class="c-str">"term2mcp"</span>
+    }
+  }
+}</pre>
+      </div>
+
+      <div class="config-box">
+        <div class="config-box-header">
+          <svg class="config-box-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Claude Desktop
+        </div>
+        <pre class="config-box-body"><span class="c-comment">// ~/Library/Application Support/</span>
+<span class="c-comment">//   Claude/claude_desktop_config.json</span>
+{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"term2mcp"</span>: {
+      <span class="c-key">"command"</span>: <span class="c-str">"term2mcp"</span>
+    }
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="integration-steps" style="margin-top:2.5rem;max-width:560px;margin-left:auto;margin-right:auto;">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Enable iTerm2 Python API</h4>
+          <p>Preferences → General → Magic → <code>Enable Python API</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Install term2mcp</h4>
+          <p><code>go install github.com/phpgao/term2mcp@latest</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Add to your MCP config</h4>
+          <p>One JSON entry in <code>mcp.json</code> or Claude Desktop config.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Start asking</h4>
+          <p>"List my iTerm2 sessions", "Run <code>npm test</code> in that tab", "Read the last error"</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Related -->
+  <section class="section" style="text-align:center">
+    <p class="section-label">Ecosystem</p>
+    <h2 class="section-title" style="margin-bottom:2rem;">Built on term2go</h2>
+    <div class="related">
+      <a href="https://github.com/phpgao/term2go" class="related-card">
+        <h4>term2go</h4>
+        <p>Go client library for the iTerm2 WebSocket API</p>
+      </a>
+      <a href="https://github.com/phpgao/term2mcp" class="related-card">
+        <h4>term2mcp</h4>
+        <p>MCP server that exposes term2go to AI assistants</p>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-left">
+    <div class="footer-brand">term2mcp</div>
+    <p class="footer-text">AI-powered iTerm2 automation</p>
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/phpgao/term2mcp">GitHub</a>
+    <a href="https://github.com/phpgao/term2go">term2go</a>
+    <a href="https://github.com/phpgao/term2mcp/blob/main/README.md">Docs</a>
+    <a href="https://github.com/phpgao/term2mcp/blob/main/LICENSE">MIT</a>
+  </div>
+</footer>
+
+<script>
+  (function() {
+    var el = document.getElementById('version');
+    if (!el) return;
+
+    try { var v = JSON.parse(localStorage.getItem('term2mcp_version')); } catch(e) {}
+    if (v && v.ts > Date.now() - 3600000) {
+      el.textContent = v.tag;
+      return;
+    }
+
+    fetch('https://api.github.com/repos/phpgao/term2mcp/releases/latest')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.tag_name) {
+          el.textContent = d.tag_name;
+          localStorage.setItem('term2mcp_version', JSON.stringify({tag: d.tag_name, ts: Date.now()}));
+        }
+      })
+      .catch(function() {
+        if (v) el.textContent = v.tag;
+      });
+  })();
+</script>
+
+</body>
+</html>
