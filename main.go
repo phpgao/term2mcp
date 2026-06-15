@@ -23,6 +23,11 @@ func main() {
 		cancel()
 	}()
 
+	// Eagerly connect to iTerm2 so first tool call doesn't pay startup cost
+	log.Print("term2mcp: connecting to iTerm2...")
+	ConnOrDie()
+	log.Print("term2mcp: iTerm2 connection ready")
+
 	// Create MCP server with all tools registered
 	server := NewServer()
 
