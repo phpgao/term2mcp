@@ -47,5 +47,8 @@ func NewServer() *mcp.Server {
 	mcp.AddTool(server, toolFocus(), handleFocus)
 	mcp.AddTool(server, toolListProfiles(), handleListProfiles)
 
+	// Combined tools
+	mcp.AddTool(server, toolRunCommand(), handleRunCommand)
+
 	return server
 }
