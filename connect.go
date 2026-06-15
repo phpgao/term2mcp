@@ -10,23 +10,44 @@ import (
 
 var (
 	instance *term2go.Connection
-	once     sync.Once
-	initErr  error
+	mu       sync.Mutex
 )
 
-// GetConn returns the singleton iTerm2 connection, creating it on first call.
-// The connection is lazily established, so term2mcp starts fast even if iTerm2
-// is not running.
+// GetConn returns the iTerm2 connection, reconnecting if the current one is dead.
 func GetConn() (*term2go.Connection, error) {
-	once.Do(func() {
-		instance, initErr = term2go.Connect(context.Background(), "term2mcp")
-		if initErr != nil {
-			log.Printf("term2mcp: failed to connect to iTerm2: %v", initErr)
-		} else {
-			log.Printf("term2mcp: connected to iTerm2 (type=%s)", instance.ConnType())
-		}
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Try to reuse existing connection
+	if instance != nil {
+		return instance, nil
+	}
+
+	conn, err := term2go.Connect(context.Background(), "term2mcp")
+	if err != nil {
+		log.Printf("term2mcp: failed to connect to iTerm2: %v", err)
+		return nil, err
+	}
+	instance = conn
+	instance.OnDisconnect(func() {
+		mu.Lock()
+		instance = nil
+		mu.Unlock()
+		log.Print("term2mcp: iTerm2 disconnected, will reconnect on next call")
 	})
-	return instance, initErr
+	log.Printf("term2mcp: connected to iTerm2 (type=%s)", instance.ConnType())
+	return instance, nil
+}
+
+// DropConn drops the cached connection so GetConn will create a new one.
+func DropConn() {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		_ = instance.Close()
+		instance = nil
+		log.Print("term2mcp: dropped iTerm2 connection")
+	}
 }
 
 // ConnOrDie returns the connection or writes a fatal error to stderr.
